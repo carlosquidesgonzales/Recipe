@@ -10,15 +10,15 @@ namespace Uppgift1_Recipe.Model
 {
     public class RecipeRepository
     {
-        private static List<RecipeCategory> _receiptCategories = new List<RecipeCategory>();
+        private static List<RecipeCategory> _recipeCategories = new List<RecipeCategory>();
         private static List<Recipe> _recipe = new List<Recipe>();
         private string CS = "Data Source=localhost;Initial Catalog=SchoolProject;Integrated Security=SSPI;";
 
         public RecipeRepository()
         {
-            var recipes = GetRecipe();
-            GetCategories();
-            _recipe.AddRange(recipes);
+            _recipe.AddRange(GetRecipe());
+            _recipeCategories.AddRange(GetCategories());
+
             //if (_recipe == null)
             //{              
             //    _receiptCategories = new List<RecipeCategory>
@@ -34,62 +34,100 @@ namespace Uppgift1_Recipe.Model
             //    };
             //}
         }
-        public void GetCategories()
+        public IEnumerable<RecipeCategory> GetCategories()
         {
+            _recipe.Clear();
             using (SqlConnection con = new SqlConnection(CS))
             {
                 con.Open();
                 var sql = $@"Select * from RecipeCategory";
-                var re = con.Query<RecipeCategory>(sql);
-
-                _receiptCategories.AddRange(re);
+                return con.Query<RecipeCategory>(sql);
             }
         }
         public IEnumerable<Recipe> GetRecipe()
         {
+            _recipeCategories.Clear();
             using (SqlConnection con = new SqlConnection(CS))
             {
                 con.Open();
                 var sql = $@"Select r.RecipeId, r.Title, r.Description, r.Ingredients, rc.CategoryId, rc.Name from Recipe r inner join RecipeCategory rc on r.CategoryId = rc.CategoryId";
-                var re = con.Query<Recipe, RecipeCategory, Recipe>(sql, (recipe, category) => {
+                return con.Query<Recipe, RecipeCategory, Recipe>(sql, (recipe, category) =>
+                {
                     recipe.Category = category;
                     return recipe;
                 }, splitOn: "CategoryId");
-                return re;
             }
         }
         public Recipe GetById(int id)
         {
-            return _recipe.FirstOrDefault(r => r.RecipeId == id);
+            return GetRecipe().FirstOrDefault(r => r.RecipeId == id);
         }
 
 
 
-        public void Add(Recipe newReceipt)
+        public void Add(Recipe newRecipe)
         {
-            newReceipt.RecipeId = _recipe.Max(r => r.RecipeId) + 1;
-            if (newReceipt.Category == null)
-                newReceipt.Category = _receiptCategories.First();
-            _recipe.Add(newReceipt);
+            string insertQuery = @"INSERT INTO [dbo].[Recipe]([Title], [Description], [Ingredients], [CategoryId])
+                                VALUES
+                               (@Title, @Description, @Ingredients ,@CategoryId)";
+            using (SqlConnection db = new SqlConnection(CS))
+            {
+                db.Open();
+                var result = db.Execute(insertQuery, new
+                {
+                    newRecipe.Title,
+                    newRecipe.Description,
+                    newRecipe.Ingredients,
+                    newRecipe.CategoryId
+                });
+            }
+
         }
 
-        public void Update(Recipe receipt)
+        public void Update(Recipe recipe)
         {
-
+            using (SqlConnection db = new SqlConnection(CS))
+            {
+                string updateQuery = @"UPDATE[dbo].[Recipe]
+                                   SET[Title] = @Title
+                                      ,[Description] = @Description
+                                      ,[Ingredients] = @Ingredients
+                                      ,[CategoryId] = @CategoryId
+                                  WHERE RecipeId = @Id";
+                db.Open();
+                db.Execute(updateQuery,
+                    new
+                    {
+                        Id = recipe.RecipeId,
+                        Title = recipe.Title,
+                        Description = recipe.Description,
+                        Ingredients = recipe.Ingredients,
+                        CategoryId = recipe.CategoryId
+                    }
+                    );
+            }
         }
 
         public void Remove(int receiptId)
         {
-
+            Recipe recipe = GetById(receiptId);
+            using (SqlConnection db = new SqlConnection(CS))
+            {
+                db.Open();
+                db.Execute("DELETE FROM [dbo].[Recipe] WHERE RecipeId = @Id", new { Id = receiptId });
+            }
         }
 
 
         public IEnumerable<Recipe> Search(string title, string catepory)
         {
-            return _recipe.Where(r => r.Title.Contains(title));
+            var recipe = GetRecipe().Where(r => r.Title.Contains(title) && r.Category.Name.Contains(catepory));
+            return recipe;
         }
-
-
+        public Recipe FindById(int id)
+        {
+            return _recipe.FirstOrDefault(r => r.RecipeId == id);
+        }
 
         //public IEnumerable<Recipe> GetAll()
         //{

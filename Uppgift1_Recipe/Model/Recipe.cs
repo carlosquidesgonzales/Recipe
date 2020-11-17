@@ -12,6 +12,7 @@ namespace Uppgift1_Recipe.Model
         public string Title { get; set; }
         public string Description { get; set; }
         public string Ingredients { get; set; }
+        public int CategoryId { get; set; }
         public RecipeCategory Category { get; set; }
     }
 }
